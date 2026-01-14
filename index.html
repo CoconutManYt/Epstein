@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CoCo's Library</title>
+    <title>Document Library</title>
     <style>
         * {
             margin: 0;
@@ -61,17 +61,18 @@
             letter-spacing: -0.01em;
         }
 
-        .pdf-list {
+        .doc-list {
             list-style: none;
         }
 
-        .pdf-item {
+        .doc-item {
             margin: 8px 0;
         }
 
-        .pdf-link {
+        .doc-link {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             padding: 12px 14px;
             background: transparent;
             border-radius: 8px;
@@ -79,14 +80,21 @@
             color: #d4d4d4;
             transition: all 0.15s ease;
             font-size: 0.95em;
+            cursor: pointer;
         }
 
-        .pdf-link:hover {
+        .doc-link:hover {
             background: #363636;
             color: #ffffff;
         }
 
-        .pdf-icon {
+        .doc-info {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+
+        .doc-icon {
             width: 20px;
             height: 20px;
             margin-right: 12px;
@@ -94,8 +102,22 @@
             opacity: 0.7;
         }
 
-        .pdf-link:hover .pdf-icon {
+        .doc-link:hover .doc-icon {
             opacity: 1;
+        }
+
+        .doc-type {
+            font-size: 0.75em;
+            padding: 3px 8px;
+            background: #3a3a3a;
+            border-radius: 4px;
+            color: #a0a0a0;
+            margin-left: 8px;
+        }
+
+        .doc-link:hover .doc-type {
+            background: #4a4a4a;
+            color: #c0c0c0;
         }
 
         .loading {
@@ -182,25 +204,201 @@
             line-height: 1.7;
             margin: 8px 0;
         }
+
+        /* Viewer Modal */
+        .viewer-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .viewer-modal.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .viewer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 30px;
+            background: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        .viewer-title {
+            color: #f5f5f5;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .viewer-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .viewer-btn {
+            padding: 8px 16px;
+            background: #363636;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
+            color: #d4d4d4;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .viewer-btn:hover {
+            background: #4a4a4a;
+            color: #ffffff;
+        }
+
+        .close-btn {
+            background: #3a2020;
+            border-color: #5a3030;
+        }
+
+        .close-btn:hover {
+            background: #5a3030;
+        }
+
+        .viewer-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .viewer-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .viewer-content .odt-viewer {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            padding: 40px;
+            background: #1a1a1a;
+        }
+
+        .odt-content {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #2a2a2a;
+            padding: 60px;
+            border-radius: 8px;
+            color: #e8e8e8;
+            line-height: 1.8;
+        }
+
+        .odt-content h1, .odt-content h2, .odt-content h3 {
+            color: #f5f5f5;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .odt-content p {
+            margin-bottom: 1em;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📚 CoCo's Library</h1>
-        <div id="content" class="loading">Loading PDFs...</div>
+        <h1>📚 Document Library</h1>
+        <div id="content" class="loading">Loading documents...</div>
     </div>
 
+    <!-- Viewer Modal -->
+    <div id="viewerModal" class="viewer-modal">
+        <div class="viewer-header">
+            <div class="viewer-title" id="viewerTitle">Document</div>
+            <div class="viewer-actions">
+                <a id="downloadBtn" class="viewer-btn" download>Download</a>
+                <button class="viewer-btn close-btn" onclick="closeViewer()">Close</button>
+            </div>
+        </div>
+        <div class="viewer-content" id="viewerContent"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script>
         // Configuration - Update this with your GitHub username and repository name
         const GITHUB_USER = 'CoconutManYt';
         const GITHUB_REPO = 'Epstein';
         const GITHUB_BRANCH = 'main'; // or 'master' depending on your default branch
         
-        async function fetchPDFs() {
+        function getFileIcon(extension) {
+            if (extension === 'pdf') {
+                return `<svg class="doc-icon" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                </svg>`;
+            } else {
+                return `<svg class="doc-icon" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10,19L12,15H9V10H15V15L13,19H10Z"/>
+                </svg>`;
+            }
+        }
+
+        async function openViewer(url, name, type) {
+            const modal = document.getElementById('viewerModal');
+            const title = document.getElementById('viewerTitle');
+            const content = document.getElementById('viewerContent');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            title.textContent = name;
+            downloadBtn.href = url;
+            downloadBtn.download = name;
+            
+            if (type === 'pdf') {
+                content.innerHTML = `<iframe src="${url}"></iframe>`;
+            } else if (type === 'odt') {
+                content.innerHTML = '<div class="odt-viewer"><div class="odt-content">Loading ODT file...</div></div>';
+                
+                try {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+                    
+                    const viewer = content.querySelector('.odt-content');
+                    viewer.innerHTML = result.value || '<p>Could not render ODT file.</p>';
+                } catch (error) {
+                    content.querySelector('.odt-content').innerHTML = 
+                        '<p style="color: #ffb3b3;">Error loading ODT file. Please download to view.</p>';
+                }
+            }
+            
+            modal.classList.add('active');
+        }
+
+        function closeViewer() {
+            const modal = document.getElementById('viewerModal');
+            modal.classList.remove('active');
+            document.getElementById('viewerContent').innerHTML = '';
+        }
+
+        // Close viewer with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeViewer();
+        });
+
+        async function fetchDocuments() {
             const contentDiv = document.getElementById('content');
             
             try {
-                // Fetch the repository contents
                 const response = await fetch(
                     `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`
                 );
@@ -212,51 +410,54 @@
                 const data = await response.json();
                 const files = data.tree;
                 
-                // Organize PDFs by folder
+                // Organize documents by folder
                 const categories = {};
                 
                 files.forEach(file => {
-                    if (file.path.toLowerCase().endsWith('.pdf')) {
+                    const lowerPath = file.path.toLowerCase();
+                    if (lowerPath.endsWith('.pdf') || lowerPath.endsWith('.odt')) {
                         const pathParts = file.path.split('/');
                         const category = pathParts.length > 1 ? pathParts[0] : 'Uncategorized';
                         const fileName = pathParts[pathParts.length - 1];
+                        const extension = fileName.split('.').pop().toLowerCase();
                         
                         if (!categories[category]) {
                             categories[category] = [];
                         }
                         
                         categories[category].push({
-                            name: fileName.replace('.pdf', ''),
+                            name: fileName.replace(/\.(pdf|odt)$/i, ''),
+                            fullName: fileName,
+                            type: extension,
                             url: `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${file.path}`
                         });
                     }
                 });
                 
-                // Display categories and PDFs
+                // Display categories and documents
                 if (Object.keys(categories).length === 0) {
                     contentDiv.innerHTML = `
                         <div class="setup-guide">
                             <h2>🚀 Setup Instructions</h2>
                             <ol>
-                                <li>Create a GitHub repository (e.g., "my-pdf-library")</li>
+                                <li>Create a GitHub repository (e.g., "my-document-library")</li>
                                 <li>In the HTML file, update <code>GITHUB_USER</code> and <code>GITHUB_REPO</code> with your details</li>
                                 <li>Create folders for categories (e.g., "Books", "Tutorials", "Research")</li>
-                                <li>Add PDF files to these folders</li>
+                                <li>Add PDF and ODT files to these folders</li>
                                 <li>Enable GitHub Pages in your repository settings (Settings → Pages → Source: main branch)</li>
                                 <li>Your site will be available at: <code>https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/</code></li>
                             </ol>
-                            <h3 style="margin-top: 20px; color: #667eea;">Example Structure:</h3>
-                            <pre style="background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto;">
-my-pdf-library/
+                            <h3>Example Structure:</h3>
+                            <pre><code>my-document-library/
 ├── index.html
 ├── Books/
 │   ├── book1.pdf
-│   └── book2.pdf
+│   └── book2.odt
 ├── Tutorials/
 │   ├── tutorial1.pdf
-│   └── tutorial2.pdf
+│   └── guide.odt
 └── Research/
-    └── paper1.pdf</pre>
+    └── paper.pdf</code></pre>
                         </div>
                     `;
                 } else {
@@ -266,18 +467,19 @@ my-pdf-library/
                         html += `
                             <div class="category">
                                 <h2>${category}</h2>
-                                <ul class="pdf-list">
+                                <ul class="doc-list">
                         `;
                         
-                        categories[category].forEach(pdf => {
+                        categories[category].forEach(doc => {
                             html += `
-                                <li class="pdf-item">
-                                    <a href="${pdf.url}" target="_blank" class="pdf-link">
-                                        <svg class="pdf-icon" viewBox="0 0 24 24">
-                                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                                        </svg>
-                                        ${pdf.name}
-                                    </a>
+                                <li class="doc-item">
+                                    <div class="doc-link" onclick='openViewer("${doc.url}", "${doc.fullName}", "${doc.type}")'>
+                                        <div class="doc-info">
+                                            ${getFileIcon(doc.type)}
+                                            ${doc.name}
+                                        </div>
+                                        <span class="doc-type">${doc.type.toUpperCase()}</span>
+                                    </div>
                                 </li>
                             `;
                         });
@@ -295,7 +497,7 @@ my-pdf-library/
             } catch (error) {
                 contentDiv.innerHTML = `
                     <div class="error">
-                        <h2>⚠️ Error Loading PDFs</h2>
+                        <h2>⚠️ Error Loading Documents</h2>
                         <p>${error.message}</p>
                         <p>Make sure you've updated the GitHub username and repository name in the code.</p>
                     </div>
@@ -309,8 +511,8 @@ my-pdf-library/
             }
         }
         
-        // Load PDFs when page loads
-        fetchPDFs();
+        // Load documents when page loads
+        fetchDocuments();
     </script>
 </body>
 </html>
